@@ -1,0 +1,51 @@
+{{- if .Values.kip.enabled }}
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: kernel-image-puller
+  namespace: {{ .Release.Namespace }}
+spec:
+  selector:
+    matchLabels:
+      name: kernel-image-puller
+  template:
+    metadata:
+      labels:
+        name: kernel-image-puller
+        app: enterprise-gateway
+        component: kernel-image-puller
+        chart: {{ .Chart.Name }}-{{ .Chart.Version | replace "+" "_" }}
+        release: {{ .Release.Name }}
+        heritage: {{ .Release.Service }}
+    spec:
+      serviceAccountName: enterprise-gateway-sa
+      containers:
+      - name: kernel-image-puller
+        image: {{ .Values.kip.image }}
+        imagePullPolicy: {{ .Values.kip.imagePullPolicy }}
+        env:
+        - name: KIP_LOG_LEVEL
+          value: {{ .Values.logLevel }}
+        - name: KIP_GATEWAY_HOST
+          value: "http://enterprise-gateway.{{ .Release.Namespace }}:{{ .Values.port }}"
+        - name: KIP_INTERVAL
+          value: !!str {{ .Values.kip.interval }}
+        - name: KIP_PULL_POLICY
+          value: {{ .Values.kip.pullPolicy }}
+        - name: KIP_CRI_ENDPOINT
+          value: "unix://{{ .Values.kip.criSocket }}"
+        - name: KIP_DEFAULT_CONTAINER_REGISTRY
+          value: {{ .Values.kip.defaultContainerRegistry }}
+        # Optional authorization token passed in all requests (should match EG_AUTH_TOKEN)
+        {{- if .Values.authToken }}
+        - name: KIP_AUTH_TOKEN   
+          value: {{ .Values.authToken }}
+        {{- end }}
+        volumeMounts:
+        - name: cri-socket
+          mountPath: !!str {{ .Values.kip.criSocket }}  # see env KIP_CRI_ENDPOINT
+      volumes:
+      - name: cri-socket
+        hostPath:
+          path: {{ .Values.kip.criSocket }}
+{{- end }}
